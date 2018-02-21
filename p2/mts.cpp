@@ -3,8 +3,14 @@
 #include <string>
 #include <thread>
 #include <sstream>
+#include <vector>
 
 using namespace std;
+
+const int E = 0;
+const int W = 1;
+const int e = 2;
+const int w = 3;
 
 class Train {
 	public:
@@ -12,14 +18,16 @@ class Train {
 	int loadTime;
 	int crossTime;
     string info;
+	int id;
 	
 	//Default Constructor
 	Train() {
 		
 	}
 	//Parametrized Constructor
-	Train(string d, string l, string c) {
+	Train(int id, string d, string l, string c) {
         info = d + " " + l + " " + c;
+		this->id = id;
 		direction = d.c_str()[0];
 		loadTime = stoi(l);
 		crossTime = stoi(c);
@@ -27,7 +35,7 @@ class Train {
 
 	//Destructor -- TODO
 	~Train() {
-		
+		//cout << "Train " << id << " Destructor" << endl;
 	}
 
     string getInfo() {
@@ -48,7 +56,6 @@ class Train {
 	
 	
 };
-
 
 void schedTrains(char lastDir) { // changed to linked list, take head as additional input
 	// maybe keep track f num of E, W, e, w and use single queue
@@ -71,10 +78,15 @@ int main(int argc, char* argv[]) {
 		cerr << "usage: ./mts.exe <train_text_file>.txt" << endl;
 		return 0;
 	}
-	ifstream trainIn;
-	trainIn.open(argv[1]);
+	
+	ifstream trainFile;
+	trainFile.open(argv[1]);
 	string in;
-	while(getline(trainIn, in)) {
+	int num = 0;
+	vector<pthread_t> trainTracks[4];
+	vector<Train> trainList;
+	
+	while(getline(trainFile, in)) {
         //cout << in << endl;
 		istringstream iss(in);
 
@@ -82,13 +94,17 @@ int main(int argc, char* argv[]) {
         getline(iss,d,' ');
         getline(iss,l,' ');
         getline(iss,c,' ');
-        Train t(d,l,c);
-        //cout << t.getInfo() << endl;
+		Train newTrain(num++,d,l,c);
+        trainList.push_back(newTrain);
 
-		//cout << "loop" << endl;
+		cout << num << " loop" << endl;
 		
 	}
-	trainIn.close();
+	trainFile.close();
+	
+	for(Train x: trainList)
+		cout << "," << x.getInfo();
+	cout << '\n';
 	
 	// create thread per train for loading
 	
