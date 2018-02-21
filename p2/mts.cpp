@@ -2,8 +2,52 @@
 #include <fstream>
 #include <string>
 #include <thread>
+#include <sstream>
 
 using namespace std;
+
+class Train {
+	public:
+	char direction;
+	int loadTime;
+	int crossTime;
+    string info;
+	
+	//Default Constructor
+	Train() {
+		
+	}
+	//Parametrized Constructor
+	Train(string d, string l, string c) {
+        info = d + " " + l + " " + c;
+		direction = d.c_str()[0];
+		loadTime = stoi(l);
+		crossTime = stoi(c);
+	}
+
+	//Destructor -- TODO
+	~Train() {
+		
+	}
+
+    string getInfo() {
+        return info;
+    }
+
+	char getDirection() {
+		return direction;
+	}
+	
+	int getLoadTime() {
+		return loadTime;
+	}
+	
+	int getCrossTime() {
+		return crossTime;
+	}
+	
+	
+};
 
 
 void schedTrains(char lastDir) { // changed to linked list, take head as additional input
@@ -24,17 +68,25 @@ void schedTrains(char lastDir) { // changed to linked list, take head as additio
 
 int main(int argc, char* argv[]) {
 	if(argc != 2) {
-		cerr << "usage: ./mts.exe <train_text_file>" << endl;
+		cerr << "usage: ./mts.exe <train_text_file>.txt" << endl;
 		return 0;
 	}
 	ifstream trainIn;
 	trainIn.open(argv[1]);
 	string in;
-	//vector<string> parsed;
-	while(!trainIn.eof()) {
-		getline(trainIn, in, ' ');
-		// some data structure to store them.
-		cout << in << endl;
+	while(getline(trainIn, in)) {
+        //cout << in << endl;
+		istringstream iss(in);
+
+        string d, l, c;
+        getline(iss,d,' ');
+        getline(iss,l,' ');
+        getline(iss,c,' ');
+        Train t(d,l,c);
+        //cout << t.getInfo() << endl;
+
+		//cout << "loop" << endl;
+		
 	}
 	trainIn.close();
 	
