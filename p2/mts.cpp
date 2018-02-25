@@ -4,6 +4,8 @@
 #include <thread>
 #include <sstream>
 #include <vector>
+#include <unistd.h>
+#include <chrono>
 
 using namespace std;
 
@@ -54,11 +56,25 @@ class Train {
 		return crossTime;
 	}
 	
+	int getId() {
+		return id;
+	}
 	
 };
 
-void schedTrains(char lastDir) { // changed to linked list, take head as additional input
+vector<Train> schedTrains(vector<Train> trList, char lastDir, Train tr) { // changed to linked list, take head as additional input
 	// maybe keep track f num of E, W, e, w and use single queue
+	char dir = tr.getDirection();
+	int lastLoadTime = trList.back().getLoadTime();
+	if(dir == 'E') {
+
+	} else if(dir == 'W') {
+
+	} else if(dir == 'e') {
+
+	} else if(dir == 'w') {
+
+	}
 	/*
 	if high > 0 use high queues
 	else use low queues
@@ -71,7 +87,26 @@ void schedTrains(char lastDir) { // changed to linked list, take head as additio
 	
 	*/
 	
-}// e and w set or high and low set?
+} // e and w set or high and low set?
+
+void startTrain(Train t) {
+	//usleep(t.loadTime * 100000);
+	this_thread::sleep_for(chrono::milliseconds(t.loadTime*100));
+	//printf("%02d:%02d:%04.1f",h,m,s);
+	cout << "Done sleeping " << double(t.loadTime) / 10.0 << " seconds" << endl;
+}
+
+string elapsedTime(chrono::time_point<chrono::system_clock> start) {
+	chrono::time_point<chrono::system_clock> end = chrono::system_clock::now();
+	int timeSpan = chrono::duration_cast<chrono::milliseconds>(end-start).count();
+	int hours = timeSpan / 3600000;
+	int minutes = timeSpan / 60000;
+	double seconds = timeSpan / 1000.0;
+	char t[10];
+	sprintf(t, "%02d:%02d:%04.1f",hours,minutes,seconds);
+	// format this into a string somehow?
+	return t;
+}
 
 int main(int argc, char* argv[]) {
 	if(argc != 2) {
@@ -87,7 +122,6 @@ int main(int argc, char* argv[]) {
 	vector<Train> trainList;
 	
 	while(getline(trainFile, in)) {
-        //cout << in << endl;
 		istringstream iss(in);
 
         string d, l, c;
@@ -101,10 +135,13 @@ int main(int argc, char* argv[]) {
 		
 	}
 	trainFile.close();
+
+	chrono::time_point<chrono::system_clock> start = chrono::system_clock::now();
 	
 	for(Train x: trainList)
-		cout << "," << x.getInfo();
-	cout << '\n';
+		startTrain(x);
+	
+	cout << elapsedTime(start) << " and some text" << '\n';
 	
 	// create thread per train for loading
 	
