@@ -4,8 +4,8 @@
 #include <thread>
 #include <sstream>
 #include <vector>
-#include <unistd.h>
 #include <chrono>
+#include <mutex>
 
 using namespace std;
 
@@ -13,6 +13,8 @@ const int E = 0;
 const int W = 1;
 const int e = 2;
 const int w = 3;
+
+chrono::time_point<chrono::system_clock> start;
 
 class Train {
 	public:
@@ -44,8 +46,11 @@ class Train {
         return info;
     }
 
-	char getDirection() {
-		return direction;
+	string getDirection() {
+		if( direction == 'e' or direction == 'E')
+			return "East";
+		else
+			return "West";
 	}
 	
 	int getLoadTime() {
@@ -62,9 +67,21 @@ class Train {
 	
 };
 
+string elapsedTime(chrono::time_point<chrono::system_clock> start) {
+	chrono::time_point<chrono::system_clock> end = chrono::system_clock::now();
+	int timeSpan = chrono::duration_cast<chrono::milliseconds>(end-start).count();
+	int hours = timeSpan / 3600000;
+	int minutes = timeSpan / 60000;
+	double seconds = timeSpan / 1000.0;
+	char t[10];
+	sprintf(t, "%02d:%02d:%04.1f",hours,minutes,seconds);
+	// format this into a string somehow?
+	return t;
+}
+
 vector<Train> schedTrains(vector<Train> trList, char lastDir, Train tr) { // changed to linked list, take head as additional input
 	// maybe keep track f num of E, W, e, w and use single queue
-	char dir = tr.getDirection();
+	char dir = tr.direction;
 	int lastLoadTime = trList.back().getLoadTime();
 	if(dir == 'E') {
 
@@ -89,23 +106,29 @@ vector<Train> schedTrains(vector<Train> trList, char lastDir, Train tr) { // cha
 	
 } // e and w set or high and low set?
 
-void startTrain(Train t) {
-	//usleep(t.loadTime * 100000);
+void loadTrain(Train t) { // loads train
+
 	this_thread::sleep_for(chrono::milliseconds(t.loadTime*100));
-	//printf("%02d:%02d:%04.1f",h,m,s);
-	cout << "Done sleeping " << double(t.loadTime) / 10.0 << " seconds" << endl;
+	
+	printf("%s Train %2d is ready to go %s\n",
+		elapsedTime(start).c_str(),t.id,t.getDirection().c_str());
 }
 
-string elapsedTime(chrono::time_point<chrono::system_clock> start) {
-	chrono::time_point<chrono::system_clock> end = chrono::system_clock::now();
-	int timeSpan = chrono::duration_cast<chrono::milliseconds>(end-start).count();
-	int hours = timeSpan / 3600000;
-	int minutes = timeSpan / 60000;
-	double seconds = timeSpan / 1000.0;
-	char t[10];
-	sprintf(t, "%02d:%02d:%04.1f",hours,minutes,seconds);
-	// format this into a string somehow?
-	return t;
+void crossMain(Train t) { // cross main track
+
+	printf("%s Train %2d is ON the main track going %s\n",
+		elapsedTime(start).c_str(),t.id,t.getDirection().c_str());
+
+	this_thread::sleep_for(chrono::milliseconds(t.crossTime*100));
+	
+	printf("%s Train %2d is OFF the main track after going %s\n",
+		elapsedTime(start).c_str(),t.id,t.getDirection().c_str());
+}
+
+void startTrain(Train t) {
+	mutex mx;
+	loadTrain(t);
+	crossMain(t);
 }
 
 int main(int argc, char* argv[]) {
@@ -117,8 +140,7 @@ int main(int argc, char* argv[]) {
 	ifstream trainFile;
 	trainFile.open(argv[1]);
 	string in;
-	int num = 0;
-	vector<pthread_t> trainTracks[4];
+	int id = 0;
 	vector<Train> trainList;
 	
 	while(getline(trainFile, in)) {
@@ -128,18 +150,21 @@ int main(int argc, char* argv[]) {
         getline(iss,d,' ');
         getline(iss,l,' ');
         getline(iss,c,' ');
-		Train newTrain(num++,d,l,c);
+		Train newTrain(id++,d,l,c);
         trainList.push_back(newTrain);
 
-		cout << num << " loop" << endl;
+		cout << id << " loop" << endl;
 		
 	}
 	trainFile.close();
+	int num_threads = id;
 
-	chrono::time_point<chrono::system_clock> start = chrono::system_clock::now();
+	thread trains[num_threads];
+	start = chrono::system_clock::now();
 	
-	for(Train x: trainList)
-		startTrain(x);
+	for(int i = 0; i < num_threads; i++) {
+		trains[i] = thread(startTrain, trainList[i]);
+	}
 	
 	cout << elapsedTime(start) << " and some text" << '\n';
 	
@@ -150,7 +175,9 @@ int main(int argc, char* argv[]) {
 	
 	// eventually we will be done.
 	
-	
+	// something about all the threads joining
+	for(int i = 0; i < num_threads; i++)
+		trains[i].join();
 	cout << "Hello world! I'm using " << argv[1] << endl;
 	return 0;
 }
