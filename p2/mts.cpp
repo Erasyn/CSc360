@@ -15,6 +15,8 @@ const int e = 2;
 const int w = 3;
 
 chrono::time_point<chrono::system_clock> start;
+condition_variable cv;
+mutex mx;
 
 class Train {
 	public:
@@ -126,9 +128,12 @@ void crossMain(Train t) { // cross main track
 }
 
 void startTrain(Train t) {
-	mutex mx;
+	unique_lock<mutex> lk(mx);
 	loadTrain(t);
+	// http://en.cppreference.com/w/cpp/thread/condition_variable
+	mx.lock();
 	crossMain(t);
+	mx.unlock();
 }
 
 int main(int argc, char* argv[]) {
@@ -186,3 +191,4 @@ int main(int argc, char* argv[]) {
 // http://en.cppreference.com/w/cpp/thread/condition_variable
 // https://stackoverflow.com/questions/43614634/stdthread-how-to-wait-join-for-any-of-the-given-threads-to-complete
 // http://www.cplusplus.com/reference/thread/thread/
+// https://stackoverflow.com/questions/36602080/c11-thread-hangs-on-locking-mutex
