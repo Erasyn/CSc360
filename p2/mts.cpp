@@ -6,6 +6,7 @@
 #include <vector>
 #include <chrono>
 #include <mutex>
+#include <condition_variable>
 
 using namespace std;
 
@@ -77,7 +78,6 @@ string elapsedTime(chrono::time_point<chrono::system_clock> start) {
 	double seconds = timeSpan / 1000.0;
 	char t[10];
 	sprintf(t, "%02d:%02d:%04.1f",hours,minutes,seconds);
-	// format this into a string somehow?
 	return t;
 }
 
@@ -128,12 +128,13 @@ void crossMain(Train t) { // cross main track
 }
 
 void startTrain(Train t) {
-	unique_lock<mutex> lk(mx);
-	loadTrain(t);
 	// http://en.cppreference.com/w/cpp/thread/condition_variable
-	mx.lock();
+	//cv.wait(lk, []{return true;});
+	loadTrain(t);
+	//if(!mx.try_lock()) { cout << "uh" << endl;}
+	unique_lock<mutex> lk(mx); // critical main track
 	crossMain(t);
-	mx.unlock();
+	lk.unlock();
 }
 
 int main(int argc, char* argv[]) {
@@ -180,7 +181,6 @@ int main(int argc, char* argv[]) {
 	
 	// eventually we will be done.
 	
-	// something about all the threads joining
 	for(int i = 0; i < num_threads; i++)
 		trains[i].join();
 	cout << "Hello world! I'm using " << argv[1] << endl;
