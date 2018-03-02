@@ -48,13 +48,14 @@ class Train {
 
 // Declare globals after object
 int E, W, e, w = 0;
-vector<Train> scheduleE;
+vector<Train> schedule;
 vector<Train> scheduleW;
 char last = 'w';
 
 chrono::time_point<chrono::system_clock> start;
 condition_variable cv;
 mutex mx;
+mutex ms;
 
 string elapsedTime(chrono::time_point<chrono::system_clock> start) {
 	chrono::time_point<chrono::system_clock> end = chrono::system_clock::now();
@@ -67,64 +68,111 @@ string elapsedTime(chrono::time_point<chrono::system_clock> start) {
 	return t;
 }
 
-template<typename T>
-void pop_front(vector<T>& vec) {
-    assert(!vec.empty());
-    vec.erase(vec.begin());
-}
-
-void sortEqs() {
-	
-}
-
-void schedTrains(char lastDir, Train tr) {
-	// maybe keep track f num of E, W, e, w and use single queue
-	//if(schedule.empty() /*&& check mutex lock*/); // No scheduled trains, so just send to main track.
-	//	return tr;
-	// remember the case of >2 equal loadTimes.
-	//int len = schedule.size();
-	bool eqLoad = false;
-	char dir = tr.direction;
-	int lt = tr.loadTime;
-	//if(lt == schedule.back().loadTime) {}
-	//	eqLoad = true;
-	if(dir == 'E') { // last dir was w?
-		if(eqLoad) {
-			for(int i = len-1; tr.loadTime == scheduleE[i]; i--);
-			while()
+void ins(int diff, Train tr) {
+	/*if(diff != 0) {
+		while(schedule[diff+1].loadTime == tr.loadTime && schedule[diff+1].id > tr.id) {
+			cout << "id" << schedule[diff].id << endl;
+			diff--;	
 		}
-		//schedule.insert(tr);
+		cout << "sorter?" << endl;
+		//diff--;
+	}*/
+	schedule.insert(schedule.begin()+diff,tr);
+}
+
+void schedTrains(Train tr) {
+	char dir = tr.direction;
+	int diff = 0;
+	if(dir == 'E') {
+		diff = E;
+		ins(diff, tr);
 		E++;
 	} else if(dir == 'W') {
+		diff = E + W;
+		ins(diff,tr);
 		W++;
 	} else if(dir == 'e') {
+		diff = E + W + e;
+		ins(diff,tr);
 		e++;
 	} else if(dir == 'w') {
+		diff = E + W + e + w;
+		ins(diff,tr);
 		w++;
-	}
-	//return schedule.pop();
-	/*
-	if high > 0 use high queues
-	else use low queues
-	
-	if the size is 1, sent to main
-	
-	otherwise if west or east is zero, send the non-zero one
-	
-	otherwise, send the one that was not last sent
-	
-	*/
-	
-} // e and w set or high and low set?
+	}	
+}
 
-Train getNextTrain(char lastDir) { // next train to cross. Give last dir, choose appropriate q.
-	// first do load times.
-	// if eq, then do by dir. This should naturally lead.
-	if(scheduleE.front().loadTime == scheduleW.front().loadTime)
-	
-	if(lastDir == 'w' || lastDir == 'W') {
-		Train = scheduleW.front(); // erase it?
-		return
+int find(char p) {
+	for(int i = 0;i < schedule.size(); i++)
+		if(schedule[i].direction == p)
+			return i;
+}
+
+Train getNextTrain(char lastDir) {
+	int idx;
+	if(lastDir == 'W' || lastDir == 'w') {
+		if(E > 0) {
+			idx = find('E');
+			Train t = schedule[idx];
+			schedule.erase(schedule.begin()+idx);
+			E--;
+			last = 'e';
+			return t;
+		}
+		if(W > 0) {
+			idx = find('W');
+			Train t = schedule[idx];
+			schedule.erase(schedule.begin()+idx);
+			last = 'w';
+			W--;
+			return t;
+		}
+		if(e > 0) {
+			idx = find('e');
+			Train t = schedule[idx];
+			schedule.erase(schedule.begin()+idx);
+			e--;
+			last = 'e';
+			return t;
+		}
+		if(w > 0) {
+			idx = find('w');
+			Train t = schedule[idx];
+			schedule.erase(schedule.begin()+idx);
+			last = 'w';
+			w--;
+			return t;
+		}
+	} else {
+		if(W > 0) {
+			idx = find('W');
+			Train t = schedule[idx];
+			schedule.erase(schedule.begin()+idx);
+			last = 'w';
+			W--;
+			return t;
+		} if(E > 0) {
+			idx = find('E');
+			Train t = schedule[idx];
+			schedule.erase(schedule.begin()+idx);
+			last = 'e';
+			E--;
+			return t;
+		} if(w > 0) {
+			idx = find('w');
+			Train t = schedule[idx];
+			schedule.erase(schedule.begin()+idx);
+			last = 'w';
+			w--;
+			return t;
+		} if(e > 0) {
+			idx = find('e');
+			Train t = schedule[idx];
+			schedule.erase(schedule.begin()+idx);
+			last = 'e';
+			e--;
+			return t;
+		}
 	}
 }
 
@@ -149,19 +197,21 @@ void crossMain(Train t) { // cross main track
 
 void startTrain(Train t) {
 	// http://en.cppreference.com/w/cpp/thread/condition_variable
-	//cv.wait(lk, []{return true;});
 	loadTrain(t);
 	// lock schedule
+	unique_lock<mutex> lks(ms);
 	// Do scheduling stuff.
-	// schedTrains(tr);
-	
-	//if(!mx.try_lock()) { cout << "uh" << endl;}
+	schedTrains(t);
+	if(schedule.size() == 1)
+		lks.unlock();
+	else
+		cv.wait(lks);
+	cout << schedule.size() << endl;
 	// All threads will end up waiting - a notify one to wake one who will pop.
 	unique_lock<mutex> lk(mx); // critical main track
-	// pop thing from schefule for cross
-	// cout << schedule.pop() << endl;
-	crossMain(t);
+	crossMain(getNextTrain(last));
 	lk.unlock();
+	cv.notify_one();
 }
 
 int main(int argc, char* argv[]) {
@@ -195,7 +245,7 @@ int main(int argc, char* argv[]) {
 	thread trains[num_threads];
 	start = chrono::system_clock::now();
 	
-	for(int i = 0; i < num_threads; i++) {
+	for(int i = num_threads-1; i >= 0; i--) {
 		trains[i] = thread(startTrain, trainList[i]);
 	}
 	
@@ -210,6 +260,11 @@ int main(int argc, char* argv[]) {
 	
 	for(int i = 0; i < num_threads; i++)
 		trains[i].join();
+	for (auto x: schedule) {
+        cout << ' ' << x.getInfo();
+    }
+	//cout << endl << "s " << schedule.size();
+    
 	cout << "Hello world! I'm using " << argv[1] << endl;
 	return 0;
 }
@@ -218,4 +273,3 @@ int main(int argc, char* argv[]) {
 // https://stackoverflow.com/questions/43614634/stdthread-how-to-wait-join-for-any-of-the-given-threads-to-complete
 // http://www.cplusplus.com/reference/thread/thread/
 // https://stackoverflow.com/questions/36602080/c11-thread-hangs-on-locking-mutex
-// https://stackoverflow.com/questions/30411790/how-to-use-different-comparators-for-a-priority-queue-depending-on-conditions
