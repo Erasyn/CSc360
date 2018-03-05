@@ -50,7 +50,8 @@ class Train {
 int E, W, e, w = 0;
 vector<Train> schedule;
 vector<Train> scheduleW;
-char last = 'w';
+char last = 'W';
+int load = 0;
 
 chrono::time_point<chrono::system_clock> start;
 condition_variable cv;
@@ -106,10 +107,42 @@ int find(char p) {
 	for(int i = 0;i < schedule.size(); i++)
 		if(schedule[i].direction == p)
 			return i;
+	return -1;
 }
 
-Train getNextTrain(char lastDir) {
+char checkLoad(char lastDir, int lastLoad) {
+	int small;
+	int eL,wL;
+	if(E > 0 && W > 0) {
+		eL = schedule[find('E')].loadTime;
+		wL = schedule[find('W')].loadTime;
+		//small = min(schedule[find('E')].loadTime, schedule[find('W')].loadTime);
+		if(eL < wL) {
+			return 'w';
+		} else if(eL > wL){
+			return 'e';
+		}
+	}
+	//cout << e << " and " << w << endl;
+	if(e > 0 && w > 0 && E == 0 && W == 0) {
+		//cout <<"??"<<endl;
+		eL = schedule[find('e')].loadTime;
+		wL = schedule[find('w')].loadTime;
+		//small = min(schedule[find('e')].loadTime, schedule[find('w')].loadTime);
+		if(eL < wL) {
+			//cout << "eL " << eL << " and wL " << wL << endl;
+			return 'w';
+		} else if(eL > wL) {
+			return 'e';
+		}
+	}
+	return last;
+}
+
+Train getNextTrain(char lastDir, int lastLoad) {
 	int idx;
+	lastDir = checkLoad(lastDir,lastLoad);
+	//cout << "last " << last << endl;
 	if(lastDir == 'W' || lastDir == 'w') {
 		if(E > 0) {
 			idx = find('E');
@@ -127,7 +160,9 @@ Train getNextTrain(char lastDir) {
 			W--;
 			return t;
 		}
+		//cout << "wat" << endl;
 		if(e > 0) {
+			//cout << "in here" << endl;
 			idx = find('e');
 			Train t = schedule[idx];
 			schedule.erase(schedule.begin()+idx);
@@ -144,6 +179,7 @@ Train getNextTrain(char lastDir) {
 			return t;
 		}
 	} else {
+		//cout << "no" << endl;
 		if(W > 0) {
 			idx = find('W');
 			Train t = schedule[idx];
@@ -184,7 +220,7 @@ void loadTrain(Train t) { // loads train
 		elapsedTime(start).c_str(),t.id,t.getDirection().c_str());
 }
 
-void crossMain(Train t) { // cross main track
+int crossMain(Train t) { // cross main track
 
 	printf("%s Train %2d is ON the main track going %s\n",
 		elapsedTime(start).c_str(),t.id,t.getDirection().c_str());
@@ -193,6 +229,7 @@ void crossMain(Train t) { // cross main track
 	
 	printf("%s Train %2d is OFF the main track after going %s\n",
 		elapsedTime(start).c_str(),t.id,t.getDirection().c_str());
+	return t.loadTime;
 }
 
 void startTrain(Train t) {
@@ -202,14 +239,16 @@ void startTrain(Train t) {
 	unique_lock<mutex> lks(ms);
 	// Do scheduling stuff.
 	schedTrains(t);
-	if(schedule.size() == 1)
+	if(schedule.size() == 1) {
 		lks.unlock();
-	else
+		this_thread::sleep_for(chrono::milliseconds(20));
+	} else
 		cv.wait(lks);
-	cout << schedule.size() << endl;
+	//cout << schedule.size() << endl;
 	// All threads will end up waiting - a notify one to wake one who will pop.
 	unique_lock<mutex> lk(mx); // critical main track
-	crossMain(getNextTrain(last));
+	Train next = getNextTrain(last,load);
+	load = crossMain(next);
 	lk.unlock();
 	cv.notify_one();
 }
