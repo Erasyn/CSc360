@@ -141,7 +141,7 @@ char checkLoad(char lastDir, int lastLoad) {
 
 Train getNextTrain(char lastDir, int lastLoad) {
 	int idx;
-	lastDir = checkLoad(lastDir,lastLoad);
+	//lastDir = checkLoad(lastDir,lastLoad);
 	//cout << "last " << last << endl;
 	if(lastDir == 'W' || lastDir == 'w') {
 		if(E > 0) {
