@@ -30,9 +30,7 @@ class Train {
 	}
 
 	//Destructor -- TODO
-	~Train() {
-		//cout << "Train " << id << " Destructor" << endl;
-	}
+	~Train() {}
 
     string getInfo() {
         return info;
@@ -70,14 +68,6 @@ string elapsedTime(chrono::time_point<chrono::system_clock> start) {
 }
 
 void ins(int diff, Train tr) {
-	/*if(diff != 0) {
-		while(schedule[diff+1].loadTime == tr.loadTime && schedule[diff+1].id > tr.id) {
-			cout << "id" << schedule[diff].id << endl;
-			diff--;	
-		}
-		cout << "sorter?" << endl;
-		//diff--;
-	}*/
 	schedule.insert(schedule.begin()+diff,tr);
 }
 
@@ -109,28 +99,23 @@ int find(char p) {
 			return i;
 	return -1;
 }
-
+// This function isn't used.
 char checkLoad(char lastDir, int lastLoad) {
 	int small;
 	int eL,wL;
 	if(E > 0 && W > 0) {
 		eL = schedule[find('E')].loadTime;
 		wL = schedule[find('W')].loadTime;
-		//small = min(schedule[find('E')].loadTime, schedule[find('W')].loadTime);
 		if(eL < wL) {
 			return 'w';
 		} else if(eL > wL){
 			return 'e';
 		}
 	}
-	//cout << e << " and " << w << endl;
 	if(e > 0 && w > 0 && E == 0 && W == 0) {
-		//cout <<"??"<<endl;
 		eL = schedule[find('e')].loadTime;
 		wL = schedule[find('w')].loadTime;
-		//small = min(schedule[find('e')].loadTime, schedule[find('w')].loadTime);
 		if(eL < wL) {
-			//cout << "eL " << eL << " and wL " << wL << endl;
 			return 'w';
 		} else if(eL > wL) {
 			return 'e';
@@ -141,8 +126,6 @@ char checkLoad(char lastDir, int lastLoad) {
 
 Train getNextTrain(char lastDir, int lastLoad) {
 	int idx;
-	//lastDir = checkLoad(lastDir,lastLoad);
-	//cout << "last " << last << endl;
 	if(lastDir == 'W' || lastDir == 'w') {
 		if(E > 0) {
 			idx = find('E');
@@ -160,9 +143,7 @@ Train getNextTrain(char lastDir, int lastLoad) {
 			W--;
 			return t;
 		}
-		//cout << "wat" << endl;
 		if(e > 0) {
-			//cout << "in here" << endl;
 			idx = find('e');
 			Train t = schedule[idx];
 			schedule.erase(schedule.begin()+idx);
@@ -179,7 +160,6 @@ Train getNextTrain(char lastDir, int lastLoad) {
 			return t;
 		}
 	} else {
-		//cout << "no" << endl;
 		if(W > 0) {
 			idx = find('W');
 			Train t = schedule[idx];
@@ -233,7 +213,11 @@ int crossMain(Train t) { // cross main track
 }
 
 void startTrain(Train t) {
-	// http://en.cppreference.com/w/cpp/thread/condition_variable
+	
+	unique_lock<mutex> lck(ms);
+	cv.wait(lck);
+	lck.unlock();
+	
 	loadTrain(t);
 	// lock schedule
 	unique_lock<mutex> lks(ms);
@@ -241,10 +225,9 @@ void startTrain(Train t) {
 	schedTrains(t);
 	if(schedule.size() == 1) {
 		lks.unlock();
-		this_thread::sleep_for(chrono::milliseconds(20));
+		this_thread::sleep_for(chrono::milliseconds(10));
 	} else
 		cv.wait(lks);
-	//cout << schedule.size() << endl;
 	// All threads will end up waiting - a notify one to wake one who will pop.
 	unique_lock<mutex> lk(mx); // critical main track
 	Train next = getNextTrain(last,load);
@@ -282,11 +265,15 @@ int main(int argc, char* argv[]) {
 	int num_threads = id;
 
 	thread trains[num_threads];
-	start = chrono::system_clock::now();
 	
-	for(int i = num_threads-1; i >= 0; i--) {
+	unique_lock<mutex> lck(ms);
+	for(int i = 0; i < num_threads; i++) {
 		trains[i] = thread(startTrain, trainList[i]);
 	}
+	lck.unlock();
+	this_thread::sleep_for(chrono::milliseconds(1));
+	start = chrono::system_clock::now();
+	cv.notify_all();
 	
 	cout << elapsedTime(start) << " and some text" << '\n';
 	
@@ -299,16 +286,7 @@ int main(int argc, char* argv[]) {
 	
 	for(int i = 0; i < num_threads; i++)
 		trains[i].join();
-	for (auto x: schedule) {
-        cout << ' ' << x.getInfo();
-    }
-	//cout << endl << "s " << schedule.size();
     
 	cout << "Hello world! I'm using " << argv[1] << endl;
 	return 0;
 }
-
-// http://en.cppreference.com/w/cpp/thread/condition_variable
-// https://stackoverflow.com/questions/43614634/stdthread-how-to-wait-join-for-any-of-the-given-threads-to-complete
-// http://www.cplusplus.com/reference/thread/thread/
-// https://stackoverflow.com/questions/36602080/c11-thread-hangs-on-locking-mutex
