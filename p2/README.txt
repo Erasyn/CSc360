@@ -5,8 +5,7 @@ Overall, I did not deviate from my initial design much, with
 the exception of the mutexes, and convars to an extent as I feel
 I didn't understand them as well as I do now before the assignment.
 
-I used three mutex, one for the main track, and another for the scheduler.
-The last one was used to make sure that all trains started at the same time.
+I used two mutex, one for the main track, and another for the scheduler.
 There were convars for allowing all threads to start at the same time, for
 threads on the main track, and notifiers after a train was off main, and when
 the threads were all created. It was done with the use of one convar.
