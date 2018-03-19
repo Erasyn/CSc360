@@ -1,11 +1,11 @@
 .phony all:
-all: mts
+all: filesys
 
-mts: mts.cpp
-	gcc -Wall -D PART1 parts.c -o diskinfo
- 	gcc -Wall -D PART2 parts.c -o disklist
- 	gcc -Wall -D PART3 parts.c -o diskget
- 	gcc -Wall -D PART4 parts.c -o diskput
+filesys: master.c
+	gcc -Wall -D PART1 master.c -o diskinfo
+	gcc -Wall -D PART2 master.c -o disklist
+	gcc -Wall -D PART3 master.c -o diskget
+	gcc -Wall -D PART4 master.c -o diskput
 
 
 .PHONY clean:

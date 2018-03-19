@@ -6,6 +6,24 @@
 #include <limits.h>
 #include <assert.h>
 #include <time.h>
+
+void diskinfo(int argc, char* argv[]) {
+    return;
+}
+
+void disklist(int argc, char* argv[]) {
+    return;
+}
+
+void diskget(int argc, char* argv[]) {
+    return;
+}
+
+void diskput(int argc, char* argv[]) {
+    return;
+}
+
+
 int main(int argc, char* argv[])
 {
 #if defined(PART1)
@@ -17,7 +35,7 @@ int main(int argc, char* argv[])
 #elif defined(PART4)
  diskput(argc,argv);
 #else
-# error "PART[1234] must be defined"
+#error "PART[1234] must be defined"
 #endif
  return 0;
 }
