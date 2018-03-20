@@ -114,3 +114,5 @@ int main(int argc, char* argv[]) {
 
 // https://stackoverflow.com/questions/321423/parsing-binary-data-in-c
 // https://stackoverflow.com/questions/26228515/how-do-you-store-2-hex-digits-1-byte-in-a-single-index-position-of-a-char-arra
+// https://stackoverflow.com/questions/10324/convert-a-hexadecimal-string-to-an-integer-efficiently-in-c
+// https://stackoverflow.com/questions/1394169/converting-hex-string-stored-as-chars-to-decimal-in-c
