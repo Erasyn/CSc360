@@ -22,6 +22,13 @@ struct __attribute__((__packed__)) superblock_t {
  uint32_t root_dir_block_count;
 };
 
+// FAT info
+struct fat_info_t {
+ int free_blocks;
+ int res_blocks;
+ int alloc_blocks;
+};
+
 // Time and date entry
 struct __attribute__((__packed__)) dir_entry_timedate_t {
  uint16_t year;
@@ -45,6 +52,7 @@ struct __attribute__((__packed__)) dir_entry_t {
 };
 
 struct superblock_t sb;
+struct fat_info_t fi;
 
 void initSuperBlock(char* argv[]) {
 		
@@ -52,13 +60,13 @@ void initSuperBlock(char* argv[]) {
     struct stat buffer;
     //int status = 
 	fstat(fd, &buffer);
-	printf("stat: %d\n",(int)buffer.st_blocks);
+	//printf("stat: %d\n",(int)buffer.st_blocks);
 
     //tamplate:   pa=mmap(addr, len, prot, flags, fildes, off);
     //c will implicitly cast void* to char*, while c++ does NOT
     char* address=mmap(NULL, buffer.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 
-    unsigned int info=0;
+    uint32_t info=0;
 	memcpy(&sb.fs_id,address,8);
 	//printf("%s\n",sb.fs_id);
     memcpy(&info,address+8,2);
@@ -74,11 +82,27 @@ void initSuperBlock(char* argv[]) {
 	memcpy(&info,address+26,4);
     sb.root_dir_block_count=htonl(info);
 	
-	long info1;
-	char temp[512];
-	memcpy(&info1,address+0x4d0,8);
+	
+	//char temp[512];
+	
+	//memcpy(&info,address+0x4d4,8);
     //info=htonl(info);
-	printf("info:\n%02x\n",htonl(info1));
+	//printf("info:\n%d\n",htonl(info));
+	
+	//uint32_t info_t;
+	
+	long i;
+	fi.free_blocks = 0;
+	fi.res_blocks = 0;
+	fi.alloc_blocks = 0;
+	//printf("FAT: %ld\n",buffer.st_size);
+	for(i = sb.fat_start_block * sb.block_size;
+		i < sb.fat_block_count * sb.block_size; i+=0x4) {
+		memcpy(&info,address+i,8);
+		info = htonl(info);
+		if(info == 0x1) fi.res_blocks++; //reserve
+		else if(info != 0x0) fi.alloc_blocks++; //allocate
+	} fi.free_blocks = sb.file_system_block_count - fi.alloc_blocks - fi.res_blocks;
 
     //printf("print img as string:%s(END)\n",address);
     
@@ -117,7 +141,7 @@ void initSuperBlock(char* argv[]) {
 }
 
 void diskinfo(int argc, char* argv[]) {
-    int ph = 1;
+    //int ph = 1;
 	
 	initSuperBlock(argv);
 	//(unsigned char)sb.block_size[0] * 256 + (unsigned char)sb.block_size[1]
@@ -129,7 +153,7 @@ void diskinfo(int argc, char* argv[]) {
 		sb.fat_block_count,sb.root_dir_start_block,sb.root_dir_block_count);
     // FAT info
     printf("FAT information:\nFree Blocks: %d\nReserved Blocks: %d\nAllocated Blocks: %d\n",
-		ph,ph,ph);
+		fi.free_blocks,fi.res_blocks,fi.alloc_blocks);
     return;
 }
 
