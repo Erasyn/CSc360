@@ -53,11 +53,19 @@ struct __attribute__((__packed__)) dir_entry_t {
 
 struct superblock_t sb;
 struct fat_info_t fi;
-struct dir_entry_timedat_t det;
+struct dir_entry_timedate_t det;
 
-//struct dir_entry_timedate_t setDate(uint32_t data) {
-	
-	//return det;}
+void setDate(char* data, int offset, struct dir_entry_timedate_t* det) {
+    uint32_t info = 0;
+    memcpy(&info,data+offset,2);
+    det->year = htons(info);
+	memcpy(&det->month,data+offset+2,1);
+	memcpy(&det->day,data+offset+3,1);
+	memcpy(&det->hour,data+offset+4,1);
+	memcpy(&det->minute,data+offset+5,1);
+	memcpy(&det->second,data+offset+6,1);
+    return;
+}
 
 void initSuperBlock(char* argv[]) {
 		
@@ -136,18 +144,6 @@ void diskinfo(int argc, char* argv[]) {
 
 void disklist(int argc, char* argv[]) {
 	
-	/*
-	struct __attribute__((__packed__)) dir_entry_t {
-	 uint8_t status;
-	 uint32_t starting_block;
-	 uint32_t block_count;
-	 uint32_t size;
-	 struct dir_entry_timedate_t modify_time;
-	 struct dir_entry_timedate_t create_time;
-	 uint8_t filename[31];
-	 uint8_t unused[6];
-	};*/
-	
 	int fd = open(argv[1], O_RDWR);
     struct stat buffer;
 	fstat(fd, &buffer);
@@ -160,35 +156,33 @@ void disklist(int argc, char* argv[]) {
 	uint32_t i;
 	for(i = sb.root_dir_start_block * sb.block_size;
 		i < (sb.root_dir_block_count+sb.root_dir_start_block) * sb.block_size; i+=64) {
-		//printf("wor %d\n",i);
-		memcpy(&info,address+i,1);
-		de.status = htons(info);
+			
+		memcpy(&de.status,address+i,1);
+		//de.status = htons(info);
 		memcpy(&info,address+i+1,4);
 		de.starting_block = htonl(info);
 		memcpy(&info,address+i+5,4);
 		de.block_count = htonl(info);
 		memcpy(&info,address+i+9,4);
 		de.size = htonl(info);
-		//memcpy(&info,address+i+13,7);
-		//de.modify_time = htonl(info);
-		//memcpy(&info,address+i+20,7);
-		//de.create_time = htonl(info);
+        setDate(address,i+13,&de.modify_time);
+		setDate(address,i+20,&de.create_time);
 		memcpy(&de.filename,address+i+27,31);
 		memcpy(&de.unused,address+i+58,6);
 		if(de.size > 0) {
-			printf("%d ",de.status);
+			if(de.status == 2 || de.status == 3) de.status = 'F';
+			else de.status = 'D';
+			printf("%c ",de.status); // Fix this line
 			printf("%10d ",de.size);
-			printf("%30s \n",de.filename);
+			printf("%30s ",de.filename);
+            printf("%u/%02u/%02u %u:%02u:%02u\n",
+                de.modify_time.year,de.modify_time.month,de.modify_time.day,
+                de.modify_time.hour,de.modify_time.minute,de.modify_time.second);
 		}
 	}
 	munmap(address,buffer.st_size);
     close(fd);
-	
-    //printf("c1 8d 20s 17s\n");
-	//printf("%c ",de.status);
-	//printf("%10d ",de.size);
-	//printf("%30s \n",de.filename);
-	//printf("%u/%u/%u %u:%u:%u\n",t_d.year,t_d.month,t_d.day,t_d.hour,t_d.minute,t_d.second);
+
     return;
 }
 
