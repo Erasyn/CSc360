@@ -53,6 +53,11 @@ struct __attribute__((__packed__)) dir_entry_t {
 
 struct superblock_t sb;
 struct fat_info_t fi;
+struct dir_entry_timedat_t det;
+
+//struct dir_entry_timedate_t setDate(uint32_t data) {
+	
+	//return det;}
 
 void initSuperBlock(char* argv[]) {
 		
@@ -97,12 +102,13 @@ void initSuperBlock(char* argv[]) {
 	fi.alloc_blocks = 0;
 	//printf("FAT: %ld\n",buffer.st_size);
 	for(i = sb.fat_start_block * sb.block_size;
-		i < sb.fat_block_count * sb.block_size; i+=0x4) {
+		i < (sb.fat_block_count+sb.fat_start_block) * sb.block_size; i+=0x4) {
 		memcpy(&info,address+i,8);
 		info = htonl(info);
 		if(info == 0x1) fi.res_blocks++; //reserve
 		else if(info != 0x0) fi.alloc_blocks++; //allocate
-	} fi.free_blocks = sb.file_system_block_count - fi.alloc_blocks - fi.res_blocks;
+		else fi.free_blocks++;
+	}
 
     //printf("print img as string:%s(END)\n",address);
     
@@ -112,39 +118,10 @@ void initSuperBlock(char* argv[]) {
 
     munmap(address,buffer.st_size);
     close(fd);
-	
-	
-	/*
-    fseek(in, 0x8, SEEK_SET); // go to partition table start
-    fread(sb.block_size, 1, 2, in);
-	fread(&buffer, 1, 4, in);
-	//sb.block_count = strtol(buffer,NULL,16);
-	printf("%ld this\n",strtol(&buffer,NULL,16));
-	fread(sb.fat_starts, 1, 4, in);
-	fread(sb.fat_blocks, 1, 4, in);
-	fread(sb.root_start, 1, 4, in);
-	fread(sb.root_blocks, 1, 4, in);
-    
-	
-	int i;
-	for(i = 0; i < 8; i+=2)
-		printf("%.2X%.2X ", buffer[i],buffer[i+1]);
-	printf("\n");
-	fread(buffer, 1, 8, in);
-	for(i = 0; i < 8; i+=2)
-		printf("%.2X%.2X ", buffer[i],buffer[i+1]);
-	printf("\n");
-	*/
-    
-    //fclose(in);
-	
 }
 
 void diskinfo(int argc, char* argv[]) {
-    //int ph = 1;
-	
-	initSuperBlock(argv);
-	//(unsigned char)sb.block_size[0] * 256 + (unsigned char)sb.block_size[1]
+	//initSuperBlock(argv);
 	
     //super block
     printf("Super block information:\nBlock size: %d\nBlock count: %d\nFAT starts: %d\n",
@@ -158,8 +135,60 @@ void diskinfo(int argc, char* argv[]) {
 }
 
 void disklist(int argc, char* argv[]) {
-    //for loop
-    printf("c1 8d 20s 17s");
+	
+	/*
+	struct __attribute__((__packed__)) dir_entry_t {
+	 uint8_t status;
+	 uint32_t starting_block;
+	 uint32_t block_count;
+	 uint32_t size;
+	 struct dir_entry_timedate_t modify_time;
+	 struct dir_entry_timedate_t create_time;
+	 uint8_t filename[31];
+	 uint8_t unused[6];
+	};*/
+	
+	int fd = open(argv[1], O_RDWR);
+    struct stat buffer;
+	fstat(fd, &buffer);
+	
+    char* address=mmap(NULL, buffer.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	
+	//int tot_dir = (sb.block_size / 64) * sb.root_dir_block_count;
+	struct dir_entry_t de;
+	int info=0;
+	uint32_t i;
+	for(i = sb.root_dir_start_block * sb.block_size;
+		i < (sb.root_dir_block_count+sb.root_dir_start_block) * sb.block_size; i+=64) {
+		//printf("wor %d\n",i);
+		memcpy(&info,address+i,1);
+		de.status = htons(info);
+		memcpy(&info,address+i+1,4);
+		de.starting_block = htonl(info);
+		memcpy(&info,address+i+5,4);
+		de.block_count = htonl(info);
+		memcpy(&info,address+i+9,4);
+		de.size = htonl(info);
+		//memcpy(&info,address+i+13,7);
+		//de.modify_time = htonl(info);
+		//memcpy(&info,address+i+20,7);
+		//de.create_time = htonl(info);
+		memcpy(&de.filename,address+i+27,31);
+		memcpy(&de.unused,address+i+58,6);
+		if(de.size > 0) {
+			printf("%d ",de.status);
+			printf("%10d ",de.size);
+			printf("%30s \n",de.filename);
+		}
+	}
+	munmap(address,buffer.st_size);
+    close(fd);
+	
+    //printf("c1 8d 20s 17s\n");
+	//printf("%c ",de.status);
+	//printf("%10d ",de.size);
+	//printf("%30s \n",de.filename);
+	//printf("%u/%u/%u %u:%u:%u\n",t_d.year,t_d.month,t_d.day,t_d.hour,t_d.minute,t_d.second);
     return;
 }
 
@@ -175,16 +204,18 @@ void diskput(int argc, char* argv[]) {
 int main(int argc, char* argv[]) {
 	//mmap(), fread(), fwrite(), fseek(), fstat()
 	
+	initSuperBlock(argv);
+	
 #if defined(PART1)
- diskinfo(argc, argv);/*
+ diskinfo(argc, argv);
 #elif defined(PART2)
  disklist(argc, argv);
 #elif defined(PART3)
  diskget(argc, argv);
 #elif defined(PART4)
  diskput(argc,argv);
-#else
-#error "PART[1234] must be defined"*/
+//#else
+//#error "PART[1234] must be defined"
 #endif
  return 0;
 }
