@@ -154,11 +154,47 @@ void disklist(int argc, char* argv[]) {
 	struct dir_entry_t de;
 	int info=0;
 	uint32_t i;
-	for(i = sb.root_dir_start_block * sb.block_size;
-		i < (sb.root_dir_block_count+sb.root_dir_start_block) * sb.block_size; i+=64) {
+	int start = sb.root_dir_start_block;
+	int length = sb.root_dir_block_count;
+	
+	if(argc > 2) {
+		//printf("more than %s\n",argv[2]);
+		
+		const char *my_str_literal = argv[2];
+		char *token, *str, *tofree;
+
+		tofree = str = strdup(my_str_literal);  // We own str's memory now.
+		while ((token = strsep(&str, "/"))) {
+			if (strlen(token) == 0) continue;
+			//printf("%ld - %s\n",strlen(token),token);
+			
+			for(i = start * sb.block_size;
+				i < (start+length) * sb.block_size; i+=64) {
+				
+				memcpy(&de.status,address+i,1);
+				memcpy(&de.filename,address+i+27,31);
+				if(strcmp((char*)de.filename,token) != 0 || de.status < 4) continue;
+				//printf("match\n");
+				
+				memcpy(&info,address+i+1,4);
+				start = htonl(info);
+				memcpy(&info,address+i+5,4);
+				length = htonl(info);
+				//printf("start: %d, length: %d\n",start,length);
+				if(de.size > 0 && de.status == 5) {
+					if(de.status == 2 || de.status == 3) de.status = 'F';
+					else de.status = 'D';
+				}
+			}
+		}
+		free(tofree);
+	}
+	
+	//printf("s:%d\n",start * sb.block_size);
+	for(i = start * sb.block_size;
+		i < (start+length) * sb.block_size; i+=64) {
 			
 		memcpy(&de.status,address+i,1);
-		//de.status = htons(info);
 		memcpy(&info,address+i+1,4);
 		de.starting_block = htonl(info);
 		memcpy(&info,address+i+5,4);
@@ -187,7 +223,7 @@ void disklist(int argc, char* argv[]) {
 }
 
 void diskget(int argc, char* argv[]) {
-    return;
+    return; //fprintf
 }
 
 void diskput(int argc, char* argv[]) {
