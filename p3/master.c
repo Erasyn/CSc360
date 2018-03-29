@@ -180,6 +180,9 @@ void disklist(int argc, char* argv[]) {
 				start = htonl(info);
 				memcpy(&info,address+i+5,4);
 				length = htonl(info);
+				memcpy(&info,address+i+9,4);
+				de.size = htonl(info);
+				//printf("size: %u\n",de.size);
 				//printf("start: %d, length: %d\n",start,length);
 				if(de.size > 0 && de.status == 5) {
 					if(de.status == 2 || de.status == 3) de.status = 'F';
@@ -223,6 +226,81 @@ void disklist(int argc, char* argv[]) {
 }
 
 void diskget(int argc, char* argv[]) {
+	
+	int fd = open(argv[1], O_RDWR);
+    struct stat buffer;
+	fstat(fd, &buffer);
+	
+    char* address=mmap(NULL, buffer.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	
+	//int tot_dir = (sb.block_size / 64) * sb.root_dir_block_count;
+	struct dir_entry_t de;
+	int info=0;
+	uint32_t i;
+	int start = sb.root_dir_start_block;
+	int length = sb.root_dir_block_count;
+	int found = 0;
+	
+	
+	if(argc != 4) {printf("wrong arg num\n"); return;}
+	
+	
+	// nav to file
+	if(argc > 2) {
+		const char *my_str_literal = argv[2];
+		char *token, *str, *tofree;
+		tofree = str = strdup(my_str_literal);  // We own str's memory now.
+		while ((token = strsep(&str, "/"))) {
+			if (strlen(token) == 0) continue;
+			
+			for(i = start * sb.block_size;
+				i < (start+length) * sb.block_size; i+=64) {
+				
+				memcpy(&de.status,address+i,1);
+				memcpy(&de.filename,address+i+27,31);
+				if(strcmp((char*)de.filename,token) != 0) continue;
+				if(de.status == 3) found = 1;
+				printf("match\n");
+				
+				memcpy(&info,address+i+1,4);
+				start = htonl(info);
+				memcpy(&info,address+i+5,4);
+				length = htonl(info);
+			}
+			printf("start: %d\n",sb.fat_start_block * sb.block_size);
+		}
+		free(tofree);
+	}
+	printf("s: %d\n",start);
+	
+	if(!found) {printf("File not found.\n"); return;}
+	
+	uint32_t j;
+	int fat = 0;
+	printf("FAT: %d\n",(sb.fat_start_block * sb.block_size)+(start*4));
+	char text[sb.block_size];
+	FILE* fp = fopen(argv[3], "wb+");
+	printf("new file\n");
+	if(!fp) {printf("error\n"); return;}
+	
+	for(j = (sb.fat_start_block * sb.block_size)+(4*start);
+		fat != -1; j=(sb.fat_start_block * sb.block_size)+(4*fat)) {
+		int num = (j - (sb.fat_start_block * sb.block_size))/4*sb.block_size;
+		
+		memcpy(&fat,address+j,8);
+		fat = htonl(fat);
+		printf("info2: %d and i: %d\n",fat,num);
+		
+		
+		memcpy(text,address+num, sb.block_size);
+		//printf("%s\n",text);
+		fwrite(text, sizeof(char), sb.block_size, fp);
+
+	}
+	fclose(fp);
+	munmap(address,buffer.st_size);
+    close(fd);
+	
     return; //fprintf
 }
 
@@ -233,7 +311,7 @@ void diskput(int argc, char* argv[]) {
 
 int main(int argc, char* argv[]) {
 	//mmap(), fread(), fwrite(), fseek(), fstat()
-	
+	if(argc < 2) {printf("img file required.\n"); return 0;}
 	initSuperBlock(argv);
 	
 #if defined(PART1)

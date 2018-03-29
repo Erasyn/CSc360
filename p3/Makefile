@@ -8,7 +8,7 @@ filesys: master.c
 	gcc -Wall -D PART4 master.c -o diskput
 	
 part: master.c
-	gcc -Wall -D PART2 master.c -o diskget
+	gcc -Wall -D PART4 master.c -o diskget
 
 
 .PHONY clean:
