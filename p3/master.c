@@ -258,7 +258,7 @@ void diskget(int argc, char* argv[]) {
 				
 				memcpy(&de.status,address+i,1);
 				memcpy(&de.filename,address+i+27,31);
-				if(strcmp((char*)de.filename,token) != 0) continue;
+				if(strcmp((char*)de.filename,token) != 0) {found = 0;continue;}
 				if(de.status == 3) found = 1;
 				printf("match\n");
 				
@@ -301,10 +301,89 @@ void diskget(int argc, char* argv[]) {
 	munmap(address,buffer.st_size);
     close(fd);
 	
-    return; //fprintf
+    return;
 }
 
 void diskput(int argc, char* argv[]) {
+	
+	if(argc < 3) {printf("wrong arg num\n"); return;}
+	
+	int fd = open(argv[1], O_RDWR);
+	struct stat buffer;
+	fstat(fd, &buffer);
+	
+    char* address=mmap(NULL, buffer.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	
+	uint8_t buf[sb.block_size];
+	FILE* fp = fopen(argv[2], "rb+");
+	if(!fp) {printf("File not found.\n"); return;}
+	struct stat st;
+	stat(argv[2],&st);
+	int size = st.st_size;
+	
+	struct dir_entry_t de;
+	int info=0;
+	uint32_t i;
+	int start = sb.root_dir_start_block;
+	int length = sb.root_dir_block_count;
+	int found = 1;
+	
+	
+	// nav to dest folder
+	if(argc > 3) {
+		const char *my_str_literal = argv[3];
+		char *token, *str, *tofree;
+		tofree = str = strdup(my_str_literal);  // We own str's memory now.
+		while ((token = strsep(&str, "/"))) {
+			if (strlen(token) == 0) continue;
+			
+			for(i = start * sb.block_size;
+				i < (start+length) * sb.block_size; i+=64) {
+				
+				memcpy(&de.status,address+i,1);
+				memcpy(&de.filename,address+i+27,31);
+				
+				if(strcmp((char*)de.filename,token) != 0 || de.status != 5) {
+					found = 0; continue;
+				} found = 1;
+				printf("match\n");
+				
+				memcpy(&info,address+i+1,4);
+				start = htonl(info);
+				memcpy(&info,address+i+5,4);
+				length = htonl(info);
+			}
+			printf("start: %d\n",sb.fat_start_block * sb.block_size);
+		}
+		free(tofree);
+	}
+	if(!found) {printf("File not found.\n"); return;}
+	
+	
+	//find first empty FAT table spot
+	// make fat parsing inside loop, will have to keep finding empties.
+	long k;
+	for(k = sb.fat_start_block * sb.block_size;
+		k < (sb.fat_block_count+sb.fat_start_block) * sb.block_size; k+=0x4) {
+		memcpy(&info,address+k,8);
+		info = htonl(info);
+		if(info == 0x0);
+	}
+	
+	//something like put the file stats in the dir.
+	// can probably do the FAT table and actual locs easily together.
+	long j;
+	printf("sz: %d\n",size);
+	for(j = 0; j < size; j+=sb.block_size) {
+		fread(&buf,1,sb.block_size,fp);
+		printf("%s",(char*)buf);
+	}
+	
+
+	fclose(fp);
+	munmap(address,buffer.st_size);
+    close(fd);
+	
     return;
 }
 
