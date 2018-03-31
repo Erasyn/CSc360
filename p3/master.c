@@ -143,7 +143,7 @@ void diskinfo(int argc, char* argv[]) {
 }
 
 void disklist(int argc, char* argv[]) {
-	
+	/*
 	int fd = open(argv[1], O_RDWR);
     struct stat buffer;
 	fstat(fd, &buffer);
@@ -184,16 +184,30 @@ void disklist(int argc, char* argv[]) {
 				de.size = htonl(info);
 				//printf("size: %u\n",de.size);
 				//printf("start: %d, length: %d\n",start,length);
-				if(de.size > 0 && de.status == 5) {
-					if(de.status == 2 || de.status == 3) de.status = 'F';
-					else de.status = 'D';
-				}
 			}
 		}
 		free(tofree);
 	}
 	
 	//printf("s:%d\n",start * sb.block_size);
+
+	uint32_t j;
+	int fat = 0;
+	for(j = (sb.fat_start_block * sb.block_size)+(4*start);
+		fat != -1; j=(sb.fat_start_block * sb.block_size)+(4*fat)) {
+		int num = (j - (sb.fat_start_block * sb.block_size))/4*sb.block_size;
+		
+		memcpy(&fat,address+j,8);
+		fat = htonl(fat);
+		printf("info2: %d and i: %d\n",fat,num);
+		
+		
+		memcpy(text,address+num, sb.block_size);
+		//printf("%s\n",text);
+		fwrite(text, sizeof(char), sb.block_size, fp);
+
+	}
+
 	for(i = start * sb.block_size;
 		i < (start+length) * sb.block_size; i+=64) {
 			
@@ -218,6 +232,92 @@ void disklist(int argc, char* argv[]) {
                 de.modify_time.year,de.modify_time.month,de.modify_time.day,
                 de.modify_time.hour,de.modify_time.minute,de.modify_time.second);
 		}
+	}
+	munmap(address,buffer.st_size);
+    close(fd);*/
+
+	int fd = open(argv[1], O_RDWR);
+    struct stat buffer;
+	fstat(fd, &buffer);
+	
+    char* address=mmap(NULL, buffer.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	
+	//int tot_dir = (sb.block_size / 64) * sb.root_dir_block_count;
+	struct dir_entry_t de;
+	int info=0;
+	uint32_t i;
+	int start = sb.root_dir_start_block;
+	int length = sb.root_dir_block_count;
+	int found = 0;
+	
+	// nav to file
+	if(argc > 2) {
+		const char *my_str_literal = argv[2];
+		char *token, *str, *tofree;
+		tofree = str = strdup(my_str_literal);  // We own str's memory now.
+		while ((token = strsep(&str, "/"))) {
+			if (strlen(token) == 0) continue;
+			
+			for(i = start * sb.block_size;
+				i < (start+length) * sb.block_size; i+=64) {
+				
+				memcpy(&de.status,address+i,1);
+				memcpy(&de.filename,address+i+27,31);
+				if(strcmp((char*)de.filename,token) != 0 || de.status != 5) continue;
+				found = 1;
+				printf("match\n");
+				
+				memcpy(&info,address+i+1,4);
+				start = htonl(info);
+				memcpy(&info,address+i+5,4);
+				length = htonl(info);
+			}
+			printf("start: %d\n",sb.fat_start_block * sb.block_size);
+		}
+		free(tofree);
+	}
+	printf("s: %d\n",start);
+	
+	if(!found) start = sb.root_dir_start_block;
+	printf("s: %d\n",start);
+	
+	uint32_t j;
+	int fat = 0;
+	printf("FAT: %d\n",(sb.fat_start_block * sb.block_size)+(start*4));
+	
+	for(j = (sb.fat_start_block * sb.block_size)+(4*start);
+		fat != -1; j=(sb.fat_start_block * sb.block_size)+(4*fat)) {
+		int num = (j - (sb.fat_start_block * sb.block_size))/4*sb.block_size;
+		memcpy(&fat,address+j,8);
+		fat = htonl(fat);
+		printf("info2: %d and i: %d\n",fat,num);
+		//printf("%d\n",num);
+		
+		for(i = num; i < num + sb.block_size; i+=64) {
+				
+			memcpy(&de.status,address+i,1);
+			memcpy(&info,address+i+1,4);
+			de.starting_block = htonl(info);
+			memcpy(&info,address+i+5,4);
+			de.block_count = htonl(info);
+			memcpy(&info,address+i+9,4);
+			de.size = htonl(info);
+			setDate(address,i+13,&de.modify_time);
+			setDate(address,i+20,&de.create_time);
+			memcpy(&de.filename,address+i+27,31);
+			memcpy(&de.unused,address+i+58,6);
+			if(de.size > 0) {
+				if(de.status == 2 || de.status == 3) de.status = 'F';
+				else de.status = 'D';
+				printf("%c ",de.status);
+				printf("%10d ",de.size);
+				printf("%30s ",de.filename);
+				printf("%u/%02u/%02u %u:%02u:%02u\n",
+					de.modify_time.year,de.modify_time.month,de.modify_time.day,
+					de.modify_time.hour,de.modify_time.minute,de.modify_time.second);
+			}
+		}
+
 	}
 	munmap(address,buffer.st_size);
     close(fd);
@@ -363,21 +463,68 @@ void diskput(int argc, char* argv[]) {
 	//find first empty FAT table spot
 	// make fat parsing inside loop, will have to keep finding empties.
 	long k;
+	uint32_t fat_entry = 0;
+	long j = fread(buf,sizeof(char),sizeof(buf),fp);
 	for(k = sb.fat_start_block * sb.block_size;
-		k < (sb.fat_block_count+sb.fat_start_block) * sb.block_size; k+=0x4) {
+		(k < (sb.fat_block_count+sb.fat_start_block) * sb.block_size) && size > 0; k+=0x4) {
 		memcpy(&info,address+k,8);
 		info = htonl(info);
-		if(info == 0x0);
+		if(info == 0x0) {
+			if(fat_entry == 0) {
+				//do dir stuff
+				for(i = start * sb.block_size;
+					i < (start+length) * sb.block_size; i+=64) {
+						
+					memcpy(&de.status,address+i,1);
+					memcpy(&info,address+i+1,4);
+					de.starting_block = htonl(info);
+					memcpy(&info,address+i+5,4);
+					de.block_count = htonl(info);
+					memcpy(&info,address+i+9,4);
+					de.size = htonl(info);
+					setDate(address,i+13,&de.modify_time);
+					setDate(address,i+20,&de.create_time);
+					memcpy(&de.filename,address+i+27,31);
+					memcpy(&de.unused,address+i+58,6);
+					if(de.size > 0) {
+						if(de.status == 2 || de.status == 3) de.status = 'F';
+						else de.status = 'D';
+						printf("%c ",de.status); // Fix this line
+						printf("%10d ",de.size);
+						printf("%30s ",de.filename);
+						printf("%u/%02u/%02u %u:%02u:%02u\n",
+							de.modify_time.year,de.modify_time.month,de.modify_time.day,
+							de.modify_time.hour,de.modify_time.minute,de.modify_time.second);
+					}
+				}
+			} else {
+				int loc = (k - (sb.fat_start_block * sb.block_size))/4;
+				memcpy(address+(sb.fat_start_block*sb.block_size)+(fat_entry*4),&loc,4);
+			}
+			fat_entry = (k - (sb.fat_start_block * sb.block_size))/4;
+			printf("empty: %d\n",fat_entry);
+			if(j > 0) {
+				if(j % 512 != 0) buf[j] = '\0';
+				//printf("%ld\n",j);
+				//printf("%s",buf);
+				memcpy(address+(fat_entry*sb.block_size),&buf,j);
+				printf("print img as string:%s(END)\n",address+(fat_entry*sb.block_size));
+				if((j = fread(buf,sizeof(char),sizeof(buf),fp)) == 0) break;
+				// make it update fat table and file loc
+			}
+		}
 	}
 	
 	//something like put the file stats in the dir.
 	// can probably do the FAT table and actual locs easily together.
-	long j;
+/*
 	printf("sz: %d\n",size);
-	for(j = 0; j < size; j+=sb.block_size) {
-		fread(&buf,1,sb.block_size,fp);
-		printf("%s",(char*)buf);
-	}
+	while((j = fread(buf,sizeof(char),sizeof(buf),fp)) > 0) {
+	//for(j = 0; j < size; j+=sb.block_size) {
+		if(j % 512 != 0) buf[j] = '\0';
+			//printf("%ld\n",j);
+			printf("%s",buf);
+	}*/
 	
 
 	fclose(fp);
