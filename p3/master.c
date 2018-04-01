@@ -260,8 +260,8 @@ void diskget(int argc, char* argv[]) {  // fix dir jumping
 	struct dir_entry_t de;
 	int info=0;
 	uint32_t i;
+	uint32_t size;
 	int start = sb.root_dir_start_block;
-	int length = sb.root_dir_block_count;
 	int found = 0;
 	
 	
@@ -275,22 +275,46 @@ void diskget(int argc, char* argv[]) {  // fix dir jumping
 		tofree = str = strdup(my_str_literal);  // We own str's memory now.
 		while ((token = strsep(&str, "/"))) {
 			if (strlen(token) == 0) continue;
+			// This means a directory was given
+
+			uint32_t j;
+			int fat = 0;
+			printf("FAT: %d\n",(sb.fat_start_block * sb.block_size)+(start*4));
 			
-			for(i = start * sb.block_size;
-				i < (start+length) * sb.block_size; i+=64) {
-				
-				memcpy(&de.status,address+i,1);
-				memcpy(&de.filename,address+i+27,31);
-				if(strcmp((char*)de.filename,token) != 0) {found = 0;continue;}
-				if(de.status == 3) found = 1;
-				printf("match\n");
-				
-				memcpy(&info,address+i+1,4);
-				start = htonl(info);
-				memcpy(&info,address+i+5,4);
-				length = htonl(info);
+			for(j = (sb.fat_start_block * sb.block_size)+(4*start); // goes to root in fat
+				fat != -1; j=(sb.fat_start_block * sb.block_size)+(4*fat)) {
+				// actual location
+				int num = (j - (sb.fat_start_block * sb.block_size))/4*sb.block_size;
+				// get next loc in fat
+				memcpy(&fat,address+j,8);
+				fat = htonl(fat);
+				//printf("info2: %d and i: %d\n",fat,num);
+				//printf("%d\n",num);
+
+				//parse curr dir block
+				for(i = num; i < num + sb.block_size; i+=64) {
+
+					memcpy(&de.status,address+i,1);
+					memcpy(&de.filename,address+i+27,31);
+					//printf("omg %s\n",de.filename);
+					// checks if is a file or dir and match
+					if(strcmp((char*)de.filename,token) != 0) {
+						if(de.status != 0) found = 0;
+						continue;
+					}
+					if(de.status == 3) found = 1;
+					printf("match\n");
+					
+					memcpy(&info,address+i+1,4);
+					start = htonl(info);
+					memcpy(&info,address+i+9,4);
+					size = htonl(info);
+					printf("the s: %d\n",size);
+					//break;
+				}
+				//if(found) break;
 			}
-			printf("start: %d\n",sb.fat_start_block * sb.block_size);
+			printf("start: %d\n",start * sb.block_size);
 		}
 		free(tofree);
 	}
@@ -305,7 +329,7 @@ void diskget(int argc, char* argv[]) {  // fix dir jumping
 	FILE* fp = fopen(argv[3], "wb+");
 	printf("new file\n");
 	if(!fp) {printf("error\n"); return;}
-	
+	// keep track of file size i guess
 	for(j = (sb.fat_start_block * sb.block_size)+(4*start);
 		fat != -1; j=(sb.fat_start_block * sb.block_size)+(4*fat)) {
 		int num = (j - (sb.fat_start_block * sb.block_size))/4*sb.block_size;
@@ -317,7 +341,10 @@ void diskget(int argc, char* argv[]) {  // fix dir jumping
 		
 		memcpy(text,address+num, sb.block_size);
 		//printf("%s\n",text);
-		fwrite(text, sizeof(char), sb.block_size, fp);
+		//this handles writing the end of file properly
+		if(size < sb.block_size) fwrite(text, sizeof(char), size, fp);
+		else fwrite(text, sizeof(char), sb.block_size, fp);
+		size -= sb.block_size;
 
 	}
 	fclose(fp);
