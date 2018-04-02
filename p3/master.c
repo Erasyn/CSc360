@@ -299,7 +299,7 @@ void diskget(int argc, char* argv[]) {  // fix dir jumping
 					//printf("omg %s\n",de.filename);
 					// checks if is a file or dir and match
 					if(strcmp((char*)de.filename,token) != 0) {
-						if(de.status != 0) found = 0;
+						//if(de.status != 0) found = 0;
 						continue;
 					}
 					if(de.status == 3) found = 1;
@@ -338,13 +338,15 @@ void diskget(int argc, char* argv[]) {  // fix dir jumping
 		fat = htonl(fat);
 		printf("info2: %d and i: %d\n",fat,num);
 		
-		
+		//Fix the garbage with the img file get. wrong size, too big. doesnt break
 		memcpy(text,address+num, sb.block_size);
 		//printf("%s\n",text);
 		//this handles writing the end of file properly
 		if(size < sb.block_size) fwrite(text, sizeof(char), size, fp);
 		else fwrite(text, sizeof(char), sb.block_size, fp);
 		size -= sb.block_size;
+		//if(size < 0) break;
+		printf("it size: %d\n",size);
 
 	}
 	fclose(fp);
@@ -352,6 +354,14 @@ void diskget(int argc, char* argv[]) {  // fix dir jumping
     close(fd);
 	
     return;
+}
+
+void toUint(char* in, uint8_t* cnv) {
+	int i = 0;
+	memset(cnv,0,31);
+	//uint8_t cnv[31];
+	for(i = 0; i < strlen(in); i++)
+		cnv[i] = in[i];
 }
 
 void diskput(int argc, char* argv[]) {
@@ -372,111 +382,170 @@ void diskput(int argc, char* argv[]) {
 	int size = st.st_size;
 	
 	struct dir_entry_t de;
-	int info=0;
+	long info=0;
 	uint32_t i;
 	int start = sb.root_dir_start_block;
-	int length = sb.root_dir_block_count;
 	int found = 1;
+	char* filename = 0;
 	
 	
-	// nav to dest folder
+	// nav to dest folder else stay in root
 	if(argc > 3) {
+		//found = 0;
 		const char *my_str_literal = argv[3];
 		char *token, *str, *tofree;
 		tofree = str = strdup(my_str_literal);  // We own str's memory now.
 		while ((token = strsep(&str, "/"))) {
 			if (strlen(token) == 0) continue;
+			// This means a directory was given
+
+			uint32_t j;
+			int fat = 0;
+			printf("FAT: %d\n",(sb.fat_start_block * sb.block_size)+(start*4));
 			
-			for(i = start * sb.block_size;
-				i < (start+length) * sb.block_size; i+=64) {
-				
-				memcpy(&de.status,address+i,1);
-				memcpy(&de.filename,address+i+27,31);
-				
-				if(strcmp((char*)de.filename,token) != 0 || de.status != 5) {
-					found = 0; continue;
-				} found = 1;
-				printf("match\n");
-				
-				memcpy(&info,address+i+1,4);
-				start = htonl(info);
-				memcpy(&info,address+i+5,4);
-				length = htonl(info);
+			for(j = (sb.fat_start_block * sb.block_size)+(4*start); // goes to root in fat
+				fat != -1; j=(sb.fat_start_block * sb.block_size)+(4*fat)) {
+				// actual location
+				int num = (j - (sb.fat_start_block * sb.block_size))/4*sb.block_size;
+				// get next loc in fat
+				memcpy(&fat,address+j,8);
+				fat = htonl(fat);
+				printf("info2: %d and i: %d\n",fat,num);
+				//printf("%d\n",num);
+
+				//parse curr dir block
+				for(i = num; i < num + sb.block_size; i+=64) {
+
+					memcpy(&de.status,address+i,1);
+					memcpy(&de.filename,address+i+27,31);
+					// no match or not dir
+					if(de.status == 2 || de.status == 3) filename = (char*)de.filename;
+					if(strcmp((char*)de.filename,token) != 0 || de.status != 5) continue;
+					// getting here means we're in at least 1 dir
+					found = 1;
+					printf("match\n");
+					
+					memcpy(&start,address+i+1,4);
+					start = htonl(start);
+				}
 			}
 			printf("start: %d\n",sb.fat_start_block * sb.block_size);
 		}
 		free(tofree);
 	}
-	if(!found) {printf("File not found.\n"); return;}
+	if(!found) {printf("Directory not found.\n"); return;}
 	
 	
 	//find first empty FAT table spot
 	// make fat parsing inside loop, will have to keep finding empties.
-	long k;
+	long j,k;
 	uint32_t fat_entry = 0;
-	long j = fread(buf,sizeof(char),sizeof(buf),fp);
+	uint8_t xf[31] = {0};
+	memset(&buf,0,sizeof(buf));
+	long f = fread(buf,sizeof(char),sizeof(buf),fp);
+	int fat = 0;
+	// this parses fat consts fine
 	for(k = sb.fat_start_block * sb.block_size;
 		(k < (sb.fat_block_count+sb.fat_start_block) * sb.block_size) && size > 0; k+=0x4) {
+		// check curr byte
 		memcpy(&info,address+k,8);
 		info = htonl(info);
+		//find empty fat block
 		if(info == 0x0) {
+			// for first one we have to put stats in its dir
 			if(fat_entry == 0) {
-				//do dir stuff
-				for(i = start * sb.block_size;
-					i < (start+length) * sb.block_size; i+=64) {
+
+				// this where we working
+				// j is the location of our dir in fat
+				// this will parse the curr dir fat entries
+				for(j = (sb.fat_start_block * sb.block_size)+(4*sb.root_dir_start_block);
+					fat != -1; j=(sb.fat_start_block * sb.block_size)+(4*fat)) {
+					// actual location
+					//printf("this j: %ld\n",j);
+					int num = (j - (sb.fat_start_block * sb.block_size))/4*sb.block_size;
+					
+					// get next loc in fat
+					memcpy(&fat,address+j,8);
+					fat = htonl(fat);
+					//printf("infosec: %d and i: %d\n",fat,num);
+					//printf("%d\n",num);
+
+					//parse curr dir block
+					for(i = num; i < num + sb.block_size; i+=64) {
+
+						memcpy(&de.status,address+i,1);
+						memcpy(&de.filename,address+i+27,31);
+						// find file with name - may not work
+						if(filename != 0 && strcmp((char*)de.filename,filename) != 0) continue;
+						// if just insert, look for empty spot.
+						else if (de.status != 0) continue;
+						// getting here means we're good to do stuff
+						printf("match\n");
+						filename = "testname.txt";
 						
-					memcpy(&de.status,address+i,1);
-					memcpy(&info,address+i+1,4);
-					de.starting_block = htonl(info);
-					memcpy(&info,address+i+5,4);
-					de.block_count = htonl(info);
-					memcpy(&info,address+i+9,4);
-					de.size = htonl(info);
-					setDate(address,i+13,&de.modify_time);
-					setDate(address,i+20,&de.create_time);
-					memcpy(&de.filename,address+i+27,31);
-					memcpy(&de.unused,address+i+58,6);
-					if(de.size > 0) {
-						if(de.status == 2 || de.status == 3) de.status = 'F';
-						else de.status = 'D';
-						printf("%c ",de.status); // Fix this line
-						printf("%10d ",de.size);
-						printf("%30s ",de.filename);
-						printf("%u/%02u/%02u %u:%02u:%02u\n",
-							de.modify_time.year,de.modify_time.month,de.modify_time.day,
-							de.modify_time.hour,de.modify_time.minute,de.modify_time.second);
+						//xf[strlen(filename)] = '\0';
+						//memcpy(&xf,&filename,sizeof(filename));
+						printf("a name: %d\n",size / sb.block_size);
+
+						// info numbers are all fucked
+						info = 3;
+						memcpy(address+i,&info,1);
+						info = htonl((k - (sb.fat_start_block * sb.block_size))/4); //start block
+						memcpy(address+i+1,&info,4);
+						if(size % sb.block_size == 0) info = size / sb.block_size;
+						else info = (size / sb.block_size)+1;
+						info = htonl(info);
+						memcpy(address+i+5,&info,4);
+						size = htonl(size);
+						memcpy(address+i+9,&size,4);
+						toUint(filename,xf);
+						memcpy(address+i+27,xf,31);
+						// fine to here for info
+						// TODO dates
+
+						/*setDate(address,i+13,&de.modify_time);
+						setDate(address,i+20,&de.create_time);*/
+
+						info = 0xFFFFFFFFFFFF;
+						memcpy(address+i+58,&info,6);
+						/*
+						if(de.size > 0) {
+							if(de.status == 2 || de.status == 3) de.status = 'F';
+							else de.status = 'D';
+							printf("%c ",de.status);
+							printf("%10d ",de.size);
+							printf("%30s ",de.filename);
+							printf("%u/%02u/%02u %u:%02u:%02u\n",
+								de.modify_time.year,de.modify_time.month,de.modify_time.day,
+								de.modify_time.hour,de.modify_time.minute,de.modify_time.second);
+						}*/
+						//memcpy(&start,address+i+1,4);
+						//start = htonl(start);
 					}
 				}
-			} else {
-				int loc = (k - (sb.fat_start_block * sb.block_size))/4;
-				memcpy(address+(sb.fat_start_block*sb.block_size)+(fat_entry*4),&loc,4);
 			}
+
+			// down here no touch
+			// but fat entries are probably wrong.
+
 			fat_entry = (k - (sb.fat_start_block * sb.block_size))/4;
 			printf("empty: %d\n",fat_entry);
-			if(j > 0) {
-				if(j % 512 != 0) buf[j] = '\0';
-				//printf("%ld\n",j);
-				//printf("%s",buf);
-				memcpy(address+(fat_entry*sb.block_size),&buf,j);
-				printf("print img as string:%s(END)\n",address+(fat_entry*sb.block_size));
-				if((j = fread(buf,sizeof(char),sizeof(buf),fp)) == 0) break;
-				// make it update fat table and file loc
+
+			memcpy(address+(fat_entry*sb.block_size),&buf,j);
+			//printf("print img as string:%s(END)\n",address+(fat_entry*sb.block_size));
+			memset(&buf,0,sizeof(buf));
+			// That was the last read
+			if((f = fread(buf,sizeof(char),sizeof(buf),fp)) == 0) {
+				unsigned int loc = 0xFFFFFFFF;
+				memcpy(address+(sb.fat_start_block*sb.block_size)+(fat_entry*4),&loc,4);
+				break;
+			} else {
+				int loc = fat_entry+1;//(k - (sb.fat_start_block * sb.block_size))/4;
+				loc = htonl(loc);
+				memcpy(address+(sb.fat_start_block*sb.block_size)+(fat_entry*4),&loc,4);
 			}
 		}
 	}
-	
-	//something like put the file stats in the dir.
-	// can probably do the FAT table and actual locs easily together.
-/*
-	printf("sz: %d\n",size);
-	while((j = fread(buf,sizeof(char),sizeof(buf),fp)) > 0) {
-	//for(j = 0; j < size; j+=sb.block_size) {
-		if(j % 512 != 0) buf[j] = '\0';
-			//printf("%ld\n",j);
-			printf("%s",buf);
-	}*/
-	
-
 	fclose(fp);
 	munmap(address,buffer.st_size);
     close(fd);
