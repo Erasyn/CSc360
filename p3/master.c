@@ -67,6 +67,26 @@ void setDate(char* data, int offset, struct dir_entry_timedate_t* det) {
     return;
 }
 
+void putDate(char* data, int offset) {
+	time_t rawtime;
+	struct tm* timeinfo;
+	time(&rawtime);
+	timeinfo = localtime(&rawtime);
+	timeinfo->tm_year += 1900;
+	timeinfo->tm_mon += 1;
+
+
+    uint32_t info = 0;
+	info = htons(timeinfo->tm_year);
+    memcpy(data+offset,&info,2);
+	memcpy(data+offset+2,&timeinfo->tm_mon,1);
+	memcpy(data+offset+3,&timeinfo->tm_mday,1);
+	memcpy(data+offset+4,&timeinfo->tm_hour,1);
+	memcpy(data+offset+5,&timeinfo->tm_min,1);
+	memcpy(data+offset+6,&timeinfo->tm_sec,1);
+    return;
+}
+
 void initSuperBlock(char* argv[]) {
 		
 	int fd = open(argv[1], O_RDWR);
@@ -479,6 +499,8 @@ void diskput(int argc, char* argv[]) {
 
 						memcpy(&de.status,address+i,1);
 						memcpy(&de.filename,address+i+27,31);
+						memcpy(&de.starting_block,address+i+1,4);
+						de.starting_block = htonl(de.starting_block);
 						// if has dest folder
 						//printf("filenames: %s\n and fname: %s\n",de.filename,filename);
 						if(de.status % 2 == 0 && zero == -1) {zero = i;printf("z: %d\n",zero);}
@@ -486,15 +508,30 @@ void diskput(int argc, char* argv[]) {
 							continue; 
 						}
 						// if just insert, look for empty spot.
-						//else if (de.status != 0) continue;
 						// getting here means we're good to do stuff
 						printf("match\n");
-						//filename = "testname.txt";
-						//filename = argv[2];
 						
+						long z = 0;
+						int ft = 0;
+						int zr = 0x0;
+						int sv;
 						//I guess at this point we would parse and clear this files fat entries.
+						for(z = (sb.fat_start_block * sb.block_size) + (4*de.starting_block);
+							sv != -1; z=(sb.fat_start_block * sb.block_size)+(4*sv)) {
+							//printf("zed: %ld\n",(de.starting_block));
+							memcpy(&ft,address+z,4);
+							sv = htonl(ft);
+							printf("overwrite: %d\n",sv);
+							memcpy(address+z,&zr,4);
+							
 
-						printf("a name: %s\n",filename);
+						}
+						zero = (sb.fat_start_block * sb.block_size) + (4*de.starting_block);
+						k = zero;
+						memcpy(address+1,&zr,1);
+
+
+						printf("a name: %s\n an i: %d\n",filename,i);
 
 						// info numbers are all 
 						info = 3;
@@ -512,13 +549,14 @@ void diskput(int argc, char* argv[]) {
 						// fine to here for info
 						// TODO dates
 
-						/*setDate(address,i+13,&de.modify_time);
-						setDate(address,i+20,&de.create_time);*/
+						putDate(address,i+13);
+						putDate(address,i+20);
 
 						info = 0xFFFFFFFFFFFF;
 						memcpy(address+i+58,&info,6);
 						filename = "/";
 					}
+					//file doesnt yet exist
 					if(strcmp(filename,"/") != 0) {
 						// if just insert, look for empty spot.
 						//else if (de.status != 0) continue;
@@ -546,8 +584,8 @@ void diskput(int argc, char* argv[]) {
 						// fine to here for info
 						// TODO dates
 
-						/*setDate(address,i+13,&de.modify_time);
-						setDate(address,i+20,&de.create_time);*/
+						putDate(address,zero+13);
+						putDate(address,zero+20);
 
 						info = 0xFFFFFFFFFFFF;
 						memcpy(address+i+58,&info,6);
