@@ -286,7 +286,7 @@ void diskget(int argc, char* argv[]) {  // fix dir jumping
 	int found = 0;
 	
 	
-	if(argc != 4) {printf("wrong arg num\n"); return;}
+	if(argc != 4) {printf("./diskget test.img <file to get> <name on local system>\n"); return;}
 	
 	
 	// nav to file
@@ -387,7 +387,7 @@ void toUint(char* in, uint8_t* cnv) {
 
 void diskput(int argc, char* argv[]) {
 	
-	if(argc < 3) {printf("wrong arg num\n"); return;}
+	if(argc < 3) {printf("./diskput test.img <file to place> <optional name for the file and subdirs>\n"); return;}
 	
 	int fd = open(argv[1], O_RDWR);
 	struct stat buffer;
@@ -401,6 +401,7 @@ void diskput(int argc, char* argv[]) {
 	struct stat st;
 	stat(argv[2],&st);
 	int size = st.st_size;
+	//if(size > fi.free_blocks * sb.block_size) {printf("File too large\n");return;}
 	
 	struct dir_entry_t de;
 	long info=0;
@@ -422,7 +423,7 @@ void diskput(int argc, char* argv[]) {
 			found = 0;
 			uint32_t j;
 			int fat = 0;
-			printf("FAT: %d\n",(sb.fat_start_block * sb.block_size)+(start*4));
+			//printf("FAT: %d\n",(sb.fat_start_block * sb.block_size)+(start*4));
 			
 			for(j = (sb.fat_start_block * sb.block_size)+(4*start); // goes to root in fat
 				fat != -1; j=(sb.fat_start_block * sb.block_size)+(4*fat)) {
@@ -431,7 +432,7 @@ void diskput(int argc, char* argv[]) {
 				// get next loc in fat
 				memcpy(&fat,address+j,8);
 				fat = htonl(fat);
-				printf("info2: %d and i: %d\n",fat,num);
+				//printf("info2: %d and i: %d\n",fat,num);
 				//printf("%d\n",num);
 
 				//parse curr dir block
@@ -446,13 +447,14 @@ void diskput(int argc, char* argv[]) {
 					if(strcmp((char*)de.filename,token) != 0 || de.status != 5) continue;
 					// getting here means we're in at least 1 dir
 					found = 1;
-					printf("match\n");
+					filename = argv[2];
+					//printf("match\n");
 					
 					memcpy(&start,address+i+1,4);
 					start = htonl(start);
 				}
 			}
-			printf("start: %d\n",sb.fat_start_block * sb.block_size);
+			//printf("start: %d\n",sb.fat_start_block * sb.block_size);
 		}
 		free(tofree);
 	} else filename = argv[2];
@@ -481,7 +483,7 @@ void diskput(int argc, char* argv[]) {
 				// this where we working
 				// j is the location of our dir in fat
 				// this will parse the curr dir fat entries
-				for(j = (sb.fat_start_block * sb.block_size)+(4*sb.root_dir_start_block);
+				for(j = (sb.fat_start_block * sb.block_size)+(4*start);
 					fat != -1; j=(sb.fat_start_block * sb.block_size)+(4*fat)) {
 					// actual location
 					//printf("this j: %ld\n",j);
@@ -503,13 +505,13 @@ void diskput(int argc, char* argv[]) {
 						de.starting_block = htonl(de.starting_block);
 						// if has dest folder
 						//printf("filenames: %s\n and fname: %s\n",de.filename,filename);
-						if(de.status % 2 == 0 && zero == -1) {zero = i;printf("z: %d\n",zero);}
+						if(de.status % 2 == 0 && zero == -1) {zero = i;}//printf("z: %d\n",zero);}
 						if(strcmp((char*)de.filename,filename) != 0) {
 							continue; 
 						}
 						// if just insert, look for empty spot.
 						// getting here means we're good to do stuff
-						printf("match\n");
+						//printf("match\n");
 						
 						long z = 0;
 						int ft = 0;
@@ -521,7 +523,7 @@ void diskput(int argc, char* argv[]) {
 							//printf("zed: %ld\n",(de.starting_block));
 							memcpy(&ft,address+z,4);
 							sv = htonl(ft);
-							printf("overwrite: %d\n",sv);
+							//printf("overwrite: %d\n",sv);
 							memcpy(address+z,&zr,4);
 							
 
@@ -531,7 +533,7 @@ void diskput(int argc, char* argv[]) {
 						memcpy(address+1,&zr,1);
 
 
-						printf("a name: %s\n an i: %d\n",filename,i);
+						//printf("a name: %s\n an i: %d\n",filename,i);
 
 						// info numbers are all 
 						info = 3;
@@ -561,7 +563,7 @@ void diskput(int argc, char* argv[]) {
 						// if just insert, look for empty spot.
 						//else if (de.status != 0) continue;
 						// getting here means we're good to do stuff
-						printf("match final\n");
+						//printf("match final\n");
 						//filename = "testname.txt";
 						//filename = argv[2];
 						
@@ -582,7 +584,6 @@ void diskput(int argc, char* argv[]) {
 						toUint(filename,xf);
 						memcpy(address+zero+27,xf,31);
 						// fine to here for info
-						// TODO dates
 
 						putDate(address,zero+13);
 						putDate(address,zero+20);
@@ -598,7 +599,7 @@ void diskput(int argc, char* argv[]) {
 			// but fat entries are probably wrong.
 
 			fat_entry = (k - (sb.fat_start_block * sb.block_size))/4;
-			printf("empty: %d\n",fat_entry);
+			//printf("empty: %d\n",fat_entry);
 
 			memcpy(address+(fat_entry*sb.block_size),&buf,j);
 			//printf("print img as string:%s(END)\n",address+(fat_entry*sb.block_size));

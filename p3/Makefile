@@ -1,5 +1,5 @@
 .phony all:
-all: part
+all: filesys
 
 filesys: master.c
 	gcc -Wall -D PART1 master.c -o diskinfo
