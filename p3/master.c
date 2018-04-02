@@ -168,7 +168,7 @@ void disklist(int argc, char* argv[]) {
 
 			uint32_t j;
 			int fat = 0;
-			printf("FAT: %d\n",(sb.fat_start_block * sb.block_size)+(start*4));
+			//printf("FAT: %d\n",(sb.fat_start_block * sb.block_size)+(start*4));
 			
 			for(j = (sb.fat_start_block * sb.block_size)+(4*start); // goes to root in fat
 				fat != -1; j=(sb.fat_start_block * sb.block_size)+(4*fat)) {
@@ -177,7 +177,7 @@ void disklist(int argc, char* argv[]) {
 				// get next loc in fat
 				memcpy(&fat,address+j,8);
 				fat = htonl(fat);
-				printf("info2: %d and i: %d\n",fat,num);
+				//printf("info2: %d and i: %d\n",fat,num);
 				//printf("%d\n",num);
 
 				//parse curr dir block
@@ -189,31 +189,32 @@ void disklist(int argc, char* argv[]) {
 					if(strcmp((char*)de.filename,token) != 0 || de.status != 5) continue;
 					// getting here means we're in at least 1 dir
 					found = 1;
-					printf("match\n");
+					//printf("match\n");
 					
 					memcpy(&start,address+i+1,4);
 					start = htonl(start);
 				}
 			}
-			printf("start: %d\n",sb.fat_start_block * sb.block_size);
+			//printf("start: %d\n",sb.fat_start_block * sb.block_size);
 		}
 		free(tofree);
 	}
-	printf("s: %d\n",start);
+	//printf("s: %d\n",start);
 	
-	if(!found) {start = sb.root_dir_start_block;printf("not found listing root\n");}
-	printf("s: %d\n",start);
+	if(!found) {start = sb.root_dir_start_block;//printf("not found listing root\n");}
+	}
+	//printf("s: %d\n",start);
 	
 	uint32_t j;
 	int fat = 0;
-	printf("FAT: %d\n",(sb.fat_start_block * sb.block_size)+(start*4));
+	//printf("FAT: %d\n",(sb.fat_start_block * sb.block_size)+(start*4));
 	
 	for(j = (sb.fat_start_block * sb.block_size)+(4*start);
 		fat != -1; j=(sb.fat_start_block * sb.block_size)+(4*fat)) {
 		int num = (j - (sb.fat_start_block * sb.block_size))/4*sb.block_size;
 		memcpy(&fat,address+j,8);
 		fat = htonl(fat);
-		printf("info2: %d and i: %d\n",fat,num);
+		//printf("info2: %d and i: %d\n",fat,num);
 		//printf("%d\n",num);
 		
 		for(i = num; i < num + sb.block_size; i+=64) {
@@ -279,7 +280,7 @@ void diskget(int argc, char* argv[]) {  // fix dir jumping
 
 			uint32_t j;
 			int fat = 0;
-			printf("FAT: %d\n",(sb.fat_start_block * sb.block_size)+(start*4));
+			//printf("FAT: %d\n",(sb.fat_start_block * sb.block_size)+(start*4));
 			
 			for(j = (sb.fat_start_block * sb.block_size)+(4*start); // goes to root in fat
 				fat != -1; j=(sb.fat_start_block * sb.block_size)+(4*fat)) {
@@ -303,31 +304,31 @@ void diskget(int argc, char* argv[]) {  // fix dir jumping
 						continue;
 					}
 					if(de.status == 3) found = 1;
-					printf("match\n");
+					//printf("match\n");
 					
 					memcpy(&info,address+i+1,4);
 					start = htonl(info);
 					memcpy(&info,address+i+9,4);
 					size = htonl(info);
-					printf("the s: %d\n",size);
+					//printf("the s: %d\n",size);
 					//break;
 				}
 				//if(found) break;
 			}
-			printf("start: %d\n",start * sb.block_size);
+			//printf("start: %d\n",start * sb.block_size);
 		}
 		free(tofree);
 	}
-	printf("s: %d\n",start);
+	//printf("s: %d\n",start);
 	
 	if(!found) {printf("File not found.\n"); return;}
 	
 	uint32_t j;
 	int fat = 0;
-	printf("FAT: %d\n",(sb.fat_start_block * sb.block_size)+(start*4));
+	//printf("FAT: %d\n",(sb.fat_start_block * sb.block_size)+(start*4));
 	char text[sb.block_size];
 	FILE* fp = fopen(argv[3], "wb+");
-	printf("new file\n");
+	//printf("new file\n");
 	if(!fp) {printf("error\n"); return;}
 	// keep track of file size i guess
 	for(j = (sb.fat_start_block * sb.block_size)+(4*start);
@@ -336,7 +337,7 @@ void diskget(int argc, char* argv[]) {  // fix dir jumping
 		
 		memcpy(&fat,address+j,8);
 		fat = htonl(fat);
-		printf("info2: %d and i: %d\n",fat,num);
+		//printf("info2: %d and i: %d\n",fat,num);
 		
 		//Fix the garbage with the img file get. wrong size, too big. doesnt break
 		memcpy(text,address+num, sb.block_size);
@@ -344,9 +345,9 @@ void diskget(int argc, char* argv[]) {  // fix dir jumping
 		//this handles writing the end of file properly
 		if(size < sb.block_size) fwrite(text, sizeof(char), size, fp);
 		else fwrite(text, sizeof(char), sb.block_size, fp);
+		//printf("it size: %u\n",size);
+		if(size - sb.block_size > size) break;
 		size -= sb.block_size;
-		//if(size < 0) break;
-		printf("it size: %d\n",size);
 
 	}
 	fclose(fp);
@@ -398,7 +399,7 @@ void diskput(int argc, char* argv[]) {
 		while ((token = strsep(&str, "/"))) {
 			if (strlen(token) == 0) continue;
 			// This means a directory was given
-
+			found = 0;
 			uint32_t j;
 			int fat = 0;
 			printf("FAT: %d\n",(sb.fat_start_block * sb.block_size)+(start*4));
@@ -418,8 +419,10 @@ void diskput(int argc, char* argv[]) {
 
 					memcpy(&de.status,address+i,1);
 					memcpy(&de.filename,address+i+27,31);
+					//printf("token: %s\n",token);
 					// no match or not dir
 					if(de.status == 2 || de.status == 3) filename = (char*)de.filename;
+					else if(de.status != 5) {filename = strdup(token); found = 1;}
 					if(strcmp((char*)de.filename,token) != 0 || de.status != 5) continue;
 					// getting here means we're in at least 1 dir
 					found = 1;
@@ -432,9 +435,8 @@ void diskput(int argc, char* argv[]) {
 			printf("start: %d\n",sb.fat_start_block * sb.block_size);
 		}
 		free(tofree);
-	}
+	} else filename = argv[2];
 	if(!found) {printf("Directory not found.\n"); return;}
-	
 	
 	//find first empty FAT table spot
 	// make fat parsing inside loop, will have to keep finding empties.
@@ -444,9 +446,10 @@ void diskput(int argc, char* argv[]) {
 	memset(&buf,0,sizeof(buf));
 	long f = fread(buf,sizeof(char),sizeof(buf),fp);
 	int fat = 0;
+	int zero = -1;
 	// this parses fat consts fine
 	for(k = sb.fat_start_block * sb.block_size;
-		(k < (sb.fat_block_count+sb.fat_start_block) * sb.block_size) && size > 0; k+=0x4) {
+		(k < (sb.fat_block_count+sb.fat_start_block) * sb.block_size); k+=0x4) {
 		// check curr byte
 		memcpy(&info,address+k,8);
 		info = htonl(info);
@@ -471,23 +474,29 @@ void diskput(int argc, char* argv[]) {
 					//printf("%d\n",num);
 
 					//parse curr dir block
+					
 					for(i = num; i < num + sb.block_size; i+=64) {
 
 						memcpy(&de.status,address+i,1);
 						memcpy(&de.filename,address+i+27,31);
-						// find file with name - may not work
-						if(filename != 0 && strcmp((char*)de.filename,filename) != 0) continue;
+						// if has dest folder
+						//printf("filenames: %s\n and fname: %s\n",de.filename,filename);
+						if(de.status % 2 == 0 && zero == -1) {zero = i;printf("z: %d\n",zero);}
+						if(strcmp((char*)de.filename,filename) != 0) {
+							continue; 
+						}
 						// if just insert, look for empty spot.
-						else if (de.status != 0) continue;
+						//else if (de.status != 0) continue;
 						// getting here means we're good to do stuff
 						printf("match\n");
-						filename = "testname.txt";
+						//filename = "testname.txt";
+						//filename = argv[2];
 						
-						//xf[strlen(filename)] = '\0';
-						//memcpy(&xf,&filename,sizeof(filename));
-						printf("a name: %d\n",size / sb.block_size);
+						//I guess at this point we would parse and clear this files fat entries.
 
-						// info numbers are all fucked
+						printf("a name: %s\n",filename);
+
+						// info numbers are all 
 						info = 3;
 						memcpy(address+i,&info,1);
 						info = htonl((k - (sb.fat_start_block * sb.block_size))/4); //start block
@@ -508,19 +517,41 @@ void diskput(int argc, char* argv[]) {
 
 						info = 0xFFFFFFFFFFFF;
 						memcpy(address+i+58,&info,6);
-						/*
-						if(de.size > 0) {
-							if(de.status == 2 || de.status == 3) de.status = 'F';
-							else de.status = 'D';
-							printf("%c ",de.status);
-							printf("%10d ",de.size);
-							printf("%30s ",de.filename);
-							printf("%u/%02u/%02u %u:%02u:%02u\n",
-								de.modify_time.year,de.modify_time.month,de.modify_time.day,
-								de.modify_time.hour,de.modify_time.minute,de.modify_time.second);
-						}*/
-						//memcpy(&start,address+i+1,4);
-						//start = htonl(start);
+						filename = "/";
+					}
+					if(strcmp(filename,"/") != 0) {
+						// if just insert, look for empty spot.
+						//else if (de.status != 0) continue;
+						// getting here means we're good to do stuff
+						printf("match final\n");
+						//filename = "testname.txt";
+						//filename = argv[2];
+						
+
+						//printf("a name: %s\n",filename);
+
+						// info numbers are all 
+						info = 3;
+						memcpy(address+zero,&info,1);
+						info = htonl((k - (sb.fat_start_block * sb.block_size))/4); //start block
+						memcpy(address+zero+1,&info,4);
+						if(size % sb.block_size == 0) info = size / sb.block_size;
+						else info = (size / sb.block_size)+1;
+						info = htonl(info);
+						memcpy(address+zero+5,&info,4);
+						size = htonl(size);
+						memcpy(address+zero+9,&size,4);
+						toUint(filename,xf);
+						memcpy(address+zero+27,xf,31);
+						// fine to here for info
+						// TODO dates
+
+						/*setDate(address,i+13,&de.modify_time);
+						setDate(address,i+20,&de.create_time);*/
+
+						info = 0xFFFFFFFFFFFF;
+						memcpy(address+i+58,&info,6);
+						filename = "/";
 					}
 				}
 			}
