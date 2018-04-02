@@ -447,7 +447,7 @@ void diskput(int argc, char* argv[]) {
 					if(strcmp((char*)de.filename,token) != 0 || de.status != 5) continue;
 					// getting here means we're in at least 1 dir
 					found = 1;
-					filename = argv[2];
+					//filename = argv[2];
 					//printf("match\n");
 					
 					memcpy(&start,address+i+1,4);
